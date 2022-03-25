@@ -1,0 +1,130 @@
+#include<stdio.h>
+#include <iostream>
+#include<fcntl.h>
+#include<sys/ioctl.h>
+#include<unistd.h>
+#include<linux/i2c-dev.h>
+#define BUFFER_SIZE 19      //0x00 to 0x12
+
+
+using namespace std;
+
+
+// the time is in the registers in encoded decimal form
+int bcdToDec(char b) { return (b/16)*10 + (b%16); }
+
+
+
+class RtcTimer{
+public:
+//setting control register values INTCN, A1IE and A2IE
+        int setControlBits(int x)
+      {
+
+        char writeBuffer1[2];
+        writeBuffer1[0] = {0x0E};
+        writeBuffer1[1] = writeBuffer1[0] | (0x07);
+
+        if(write(x, writeBuffer1, 2)!=2){
+        cout<<"error\n"<<endl;
+
+        }
+        return 1;
+
+      }
+//setting alearm 1 values
+            int setAlarm1(int x)
+      {
+
+        char writeBuffer2[3];
+        writeBuffer2[0] = {0x07};
+        writeBuffer2[1] = {0x30};
+        writeBuffer2[2] = {0x13};
+         cout<<"alarm 1 is set\n\n"<<endl;
+        if(write(x, writeBuffer2, 3)!=3){
+        cout<<"error\n"<<endl;
+
+        }
+        return 1;
+
+      }
+//setting alarm 2 values
+              int setAlarm2(int x)
+      {
+
+        char writeBuffer3[3];
+        writeBuffer3[0] = {0x0B};
+        writeBuffer3[1] = {0x14};
+        writeBuffer3[2] = {0x22};
+        cout<<"alarm 2 is set\n\n"<<endl;
+        if(write(x, writeBuffer3, 3)!=3){
+        cout<<"error\n"<<endl;
+
+        }
+        return 1;
+
+      }
+// setting the mask bits for alarm 1( minutes and seconds match) and alarm 2 (hours and minutes match)
+         int setMaskBits(int x){
+       char writeBuffer4[8];
+        writeBuffer4[0] = {0x77};
+        writeBuffer4[1] = {0x00};
+        writeBuffer4[2] = {0x00};
+        writeBuffer4[3] = {0x01};
+        writeBuffer4[4] = {0x01};
+        writeBuffer4[5] = {0x00};
+        writeBuffer4[6] = {0x00};
+        writeBuffer4[7] = {0x01};
+         cout<<"mask bits are set \n\n"<<endl;
+         if(write(x, writeBuffer4, 8)!=8){
+        cout<<"\n"<<endl;
+
+        }
+
+        return 1;
+
+      }
+};
+int main() {
+        int file;
+        cout << "Starting the DS3231 test application\n" << endl; // prints !!!Hello World!!!
+        if((file=open("/dev/i2c-1", O_RDWR)) < 0){
+              perror("failed to open the bus\n");
+              return 1;
+           }
+
+   if(ioctl(file, I2C_SLAVE, 0x68) < 0){
+      perror("Failed to connect to the sensor\n");
+
+      return 1;
+   }
+  char writeBuffer[1] = {0x00};
+   RtcTimer alarm;
+   alarm.setControlBits(file);
+   alarm.setAlarm1(file);
+   alarm.setAlarm2(file);
+   alarm.setMaskBits(file);
+
+
+   if(write(file, writeBuffer, 1)!=1){
+
+      perror("Failed to reset the read address\n");
+      return 1;
+   }
+   char buf[BUFFER_SIZE];
+
+   if(read(file, buf, BUFFER_SIZE)!=BUFFER_SIZE){
+      perror("Failed to read in the buffer\n");
+      return 1;
+   }
+
+
+   printf("The set RTC time is %02d:%02d:%02d\n", bcdToDec(buf[2]),
+         bcdToDec(buf[1]), bcdToDec(buf[0]));
+   printf("And the set date is RTC date is %02d:%02d:%02d\n", bcdToDec(buf[4]),
+         bcdToDec(buf[5]), bcdToDec(buf[6]));
+   float temperature = buf[0x11] + ((buf[0x12]>>6)*25);
+   printf("The temperature is %f 'C\n", temperature);
+   close(file);
+        return 0;
+}
