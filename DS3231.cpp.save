@@ -1,0 +1,104 @@
+#include "DS3231.h"
+#include <string.h>
+#include <unistd.h>
+#include<stdio.h>
+#include <iostream>
+#include<fcntl.h>
+#include <fstream>
+#include<sys/ioctl.h>
+#include<unistd.h>
+#include<linux/i2c-dev.h>
+#define BUFFER_SIZE 19      //0x00 to 0x12
+//#define ADDR_DATE 0x03h
+
+
+using namespace std;
+DS3231::DS3231() {//Constructor
+}
+int bcdToDec(char a) { return ((a/16)*10 + (a%16)); }
+int DecTobcd(char a) { return ((a/10)*16 + (a%10)); }
+bool DS3231::openFileandRead() {//to open files and use it in other functions
+	if((file=open("/dev/i2c-1", O_RDWR)) < 0){
+	perror("failed to open the bus\n");
+	return 1;}
+	else{
+		if(ioctl(file, I2C_SLAVE, 0x68)<0){
+		perror("Failed to connect to the sensor\n");
+      		 return 1;}
+	return true;
+	}	
+	
+
+}
+
+void DS3231::setRTCDate(char day, char date, uint8_t month, char year) {
+	if(openFileandRead()){
+	char writeBuffer[BUFFER_SIZE];
+	writeBuffer[0] = {0x03};
+	writeBuffer[1] = DecTobcd(day);
+	writeBuffer[2] = DecTobcd(date);
+	writeBuffer[3]= DecTobcd(month);
+	writeBuffer[4] = DecTobcd(year);
+	write(file, writeBuffer, 5);
+	close(file);
+	}
+}
+
+void DS3231::getRTCDate() {
+	if(openFileandRead()){
+
+	char buffer[1] = {0x03};//set to address of the day
+	write(file, buffer, 1);
+	char buf[4];
+	read(file, buf, 4);
+	cout<<"And the RTC date is "<< bcdToDec(buf[1])<<"/"<<
+         bcdToDec(buf[2])<<"/"
+         << bcdToDec(buf[3])<<"and the day of the week is"<<" "
+        << bcdToDec(buf[0])<<endl;
+	close(file);
+	}	
+}
+
+void DS3231::getRTCtime() {
+        if(openFileandRead()){
+
+        char buffer[1] = {0x00};//set to address of the seconds
+        write(file, buffer, 1);
+        char buf[3];
+        read(file, buf, 3);
+        cout<<"And the RTC time is "<< bcdToDec(buf[2])<<"(hours):"<<
+         bcdToDec(buf[1])<<"(minutes):"<< bcdToDec(buf[0])<<"seconds"<<endl;
+        close(file);
+        }
+}
+
+float DS3231::getRTCtemp() {
+	if(openFileandRead()){
+	char buffer[1] = {0x11};// msb address
+        write(file, writeBuffer, 1);
+        char buf[2];
+        read(file, buf, 2);
+	buf[1]= buf[1]>>6; //bitwise shift by six to get it to bit 0 and 1
+	float tempdecimal = buf[1];//store the values in float as they are decimal values
+	msbBit = buf[0]>>7;// checks if the sign bit is 0 for positive or one for negative temperaure
+	if(msbBit==0){
+	float temperature = buf[0] + (tempdecimal*0.25);// since lsb has 0.25 resolution 
+	}
+	else{
+	 float temperature = buf[0] - (tempdecimal*0.25);
+	}
+	cout<<"And the RTC temperature is"<<temperatu
+}
+int main(){
+        DS3231 ds3231;
+	ds3231.getRTCtime();
+//	date.getRTCDate();
+//       date.setRTCDate(2,13,07,22);
+//	date.getRTCDate();
+        return 0;
+}
+
+
+
+DS3231::~DS3231() {//Destructor
+}

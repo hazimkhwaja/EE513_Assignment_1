@@ -1,0 +1,81 @@
+#include<stdio.h>
+#include <iostream>
+#include<fcntl.h>
+#include<sys/ioctl.h>
+#include<unistd.h>
+#include<linux/i2c-dev.h>
+#define BUFFER_SIZE 19      //0x00 to 0x12
+
+
+using namespace std;
+
+
+// the time is in the registers in encoded decimal form
+int bcdToDec(char b) { return (b/16)*10 + (b%16); }
+
+
+
+class RtcTimer{
+public:
+
+        int setRtcTime(int x)
+      {
+
+        char writeBuffer[8];
+        writeBuffer[0] = {0x00};
+        writeBuffer[1] = {0x24};
+       writeBuffer[2] = {0x48};
+       writeBuffer[3] = {0x01};
+       writeBuffer[5] = {0x18};
+        writeBuffer[6] = {0x02};
+         writeBuffer[7] = {0x22};
+
+        if(write(x, writeBuffer, 8)!=8){
+        cout<<"error\n"<<endl;
+
+
+
+        }
+        return 1;
+
+
+      }
+
+
+};
+int main() {
+        int file;
+        cout << "Starting the DS3231 test application\n" << endl; // prints !!!Hello World!!!
+        if((file=open("/dev/i2c-1", O_RDWR)) < 0){
+              perror("failed to open the bus\n");
+              return 1;
+           }
+
+   if(ioctl(file, I2C_SLAVE, 0x68) < 0){
+      perror("Failed to connect to the sensor\n");
+      return 1;
+   }
+  char writeBuffer[1] = {0x00};
+   RtcTimer currentTime;
+   currentTime.setRtcTime(file);
+
+   if(write(file, writeBuffer, 1)!=1){
+
+      perror("Failed to reset the read address\n");
+      return 1;
+   }
+   char buf[BUFFER_SIZE];
+
+   if(read(file, buf, BUFFER_SIZE)!=BUFFER_SIZE){
+      perror("Failed to read in the buffer\n");
+      return 1;
+   }
+   printf("The set RTC time is %02d:%02d:%02d\n", bcdToDec(buf[2]),
+         bcdToDec(buf[1]), bcdToDec(buf[0]));
+   printf("And the set date is RTC date is %02d:%02d:%02d\n", bcdToDec(buf[4]),
+         bcdToDec(buf[5]), bcdToDec(buf[6]));
+   float temperature = buf[0x11] + ((buf[0x12]>>6)*25);
+   printf("The temperature is %f 'C\n", temperature);
+   close(file);
+        return 0;
+}
